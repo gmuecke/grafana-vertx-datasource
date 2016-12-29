@@ -61,7 +61,7 @@ public class HttpServerVerticle extends AbstractVerticle {
 
     private void ping(RoutingContext routingContext) {
 
-        routingContext.response().putHeader("content-type", "text/html").end("Grafana Datasource");
+        routingContext.response().putHeader("content-type", "text/html").end("Grafana DistributedDatasource");
     }
 
 }

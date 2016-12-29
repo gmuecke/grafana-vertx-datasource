@@ -51,6 +51,7 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
      */
     void queryTimeSeries(final Message<JsonObject> msg) {
 
+        long start = System.currentTimeMillis();
         final JsonObject query = msg.body();
         LOG.debug("{}\n{}", address, query.encodePrettily());
 
@@ -82,6 +83,7 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
                                 .map(o -> (Message) o)
                                 .map(m -> (JsonArray) m.body())
                                 .collect(toMergedResult()));
+                LOG.info("TIME: response sent after {} ms", (System.currentTimeMillis() - start));
             } else {
                 LOG.warn("Could not process query", result.cause());
             }

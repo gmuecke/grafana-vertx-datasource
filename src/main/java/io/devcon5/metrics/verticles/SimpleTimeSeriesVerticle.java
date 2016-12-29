@@ -11,6 +11,8 @@ import static io.devcon5.vertx.mongo.JsonFactory.obj;
 import static io.devcon5.vertx.mongo.JsonFactory.toJsonArray;
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.util.stream.Collectors;
+
 import io.devcon5.metrics.util.Range;
 import io.devcon5.metrics.util.RangeParser;
 import io.vertx.core.AbstractVerticle;
@@ -53,7 +55,7 @@ public class SimpleTimeSeriesVerticle extends AbstractVerticle {
     void queryTimeSeries(final Message<JsonObject> msg) {
 
         final JsonObject query = msg.body();
-        LOG.debug("{}\n{}",address, query.encodePrettily());
+        LOG.debug("{}\n{}", address, query.encodePrettily());
 
         // get the paramsters from the query
         final Range range = rangeParser.parse(query.getJsonObject("range").getString("from"),
@@ -76,23 +78,27 @@ public class SimpleTimeSeriesVerticle extends AbstractVerticle {
         //execute search and process response
         client.findWithOptions(collectionName, tsQuery, findOptions, result -> {
             if (result.succeeded()) {
-                msg.reply(targets.stream()
-                                 /*
-                                  *  every timeseries is an {"target": label, "datapoints": [[value, ts],... ]}
-                                  */
-                                 .map(target -> obj().put("target", target)
-                                                     .put("datapoints",
-                                                          result.result()
-                                                                .stream()
-                                                                .filter(r -> target.equals(r.getJsonObject("t")
-                                                                                            .getString("name")))
-                                                                .map(json -> json.getJsonObject("n"))
-                                                                //produce a grafana json datapoint [value,timestamp]
-                                                                .map(dp -> arr(dp.getLong("value"),
-                                                                               dp.getLong("begin")))
-                                                                //collect all datapoint arrays to an array of arrays
-                                                                .collect(toJsonArray())))
-                                 .collect(toJsonArray()));
+                JsonArray response = targets.stream()
+                                            //  every timeseries is an {"target": label, "datapoints": [[value, ts],... ]}
+                                            .map(target -> obj().put("target", target)
+                                                                .put("datapoints",
+                                                                     result.result()
+                                                                           .stream()
+                                                                           .filter(r -> target.equals(r.getJsonObject(
+                                                                                   "t").getString("name")))
+                                                                           .map(json -> json.getJsonObject("n"))
+                                                                           //produce a grafana json datapoint [value,timestamp]
+                                                                           .map(dp -> arr(dp.getLong("value"),
+                                                                                          dp.getLong("begin")))
+                                                                           //collect all datapoint arrays to an array of arrays
+                                                                           .collect(toJsonArray())))
+                                            .collect(toJsonArray());
+                LOG.debug("Sending response with {} timeseries and {} datapoints",
+                          response.size(),
+                          response.stream()
+                                  .map(o -> ((JsonObject) o).getJsonArray("datapoints"))
+                                  .collect(Collectors.summingInt(JsonArray::size)));
+                msg.reply(response);
             } else {
                 LOG.error("Annotation query failed", result.cause());
                 msg.reply(arr());
