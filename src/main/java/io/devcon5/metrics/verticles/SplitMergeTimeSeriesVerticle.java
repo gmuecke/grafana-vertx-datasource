@@ -32,15 +32,16 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
 
     private int cpuCores;
     private String queryChunkAddress;
+    private String address;
 
     @Override
     public void start() throws Exception {
 
-        vertx.eventBus().consumer(config().getString(ADDRESS, "/query"), this::queryTimeSeries);
-
+        this.address = config().getString(ADDRESS, "/query");
         this.queryChunkAddress = config().getString(DELEGATE_ADDRESS, "/queryChunk");
         this.cpuCores = config().getInteger(PARALLELISM, Runtime.getRuntime().availableProcessors());
 
+        vertx.eventBus().consumer(this.address, this::queryTimeSeries);
     }
 
     /**
@@ -51,7 +52,7 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
     void queryTimeSeries(final Message<JsonObject> msg) {
 
         final JsonObject query = msg.body();
-        LOG.trace("query:" + query.encodePrettily());
+        LOG.debug("{}\n{}", address, query.encodePrettily());
 
         // get the paramsters from the query
         final Range range = rangeParser.parse(query.getJsonObject("range").getString("from"),
@@ -60,8 +61,7 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
 
         List<Future> futures = range.split(cpuCores)
                                     .stream()
-                                    .map(rc -> Tuple.of(obj().put("intervalMs", rc.getDuration())
-                                                             .put("range",
+                                    .map(rc -> Tuple.of(obj().put("range",
                                                                   obj().put("from", rc.getStartString())
                                                                        .put("to", rc.getEndString()))
                                                              .put("mexDataPoints", limit / cpuCores)

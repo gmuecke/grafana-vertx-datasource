@@ -32,6 +32,7 @@ public class SimpleTimeSeriesVerticle extends AbstractVerticle {
     private MongoClient client;
     private String collectionName;
     private RangeParser rangeParser = new RangeParser();
+    private String address;
 
     @Override
     public void start(Future<Void> startFuture) throws Exception {
@@ -39,8 +40,8 @@ public class SimpleTimeSeriesVerticle extends AbstractVerticle {
         final JsonObject mongoConfig = config().getJsonObject(MONGO);
         this.client = MongoClient.createShared(vertx, mongoConfig);
         this.collectionName = mongoConfig.getString("col_name");
-
-        vertx.eventBus().consumer(config().getString(ADDRESS, "/query"), this::queryTimeSeries);
+        this.address = config().getString(ADDRESS, "/query");
+        vertx.eventBus().consumer(address, this::queryTimeSeries);
 
     }
 
@@ -52,13 +53,11 @@ public class SimpleTimeSeriesVerticle extends AbstractVerticle {
     void queryTimeSeries(final Message<JsonObject> msg) {
 
         final JsonObject query = msg.body();
-        LOG.trace("query:" + query.encodePrettily());
+        LOG.debug("{}\n{}",address, query.encodePrettily());
 
         // get the paramsters from the query
-        final Long intervalMs = query.getLong("intervalMs");
         final Range range = rangeParser.parse(query.getJsonObject("range").getString("from"),
                                               query.getJsonObject("range").getString("to"));
-        final Integer limit = query.getInteger("maxDataPoints");
         final JsonArray targets = query.getJsonArray("targets")
                                        .stream()
                                        .map(o -> ((JsonObject) o).getString("target"))

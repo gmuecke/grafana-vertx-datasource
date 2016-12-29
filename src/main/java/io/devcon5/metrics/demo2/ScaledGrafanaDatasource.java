@@ -1,4 +1,4 @@
-package io.devcon5.metrics;
+package io.devcon5.metrics.demo2;
 
 import static io.devcon5.metrics.Constants.ADDRESS;
 import static io.devcon5.metrics.Constants.DELEGATE_ADDRESS;

@@ -34,6 +34,7 @@ public class LabelVerticle extends AbstractVerticle {
     private MongoClient client;
 
     private String collectionName;
+    private String address;
 
     @Override
     public void start(Future<Void> startFuture) throws Exception {
@@ -41,8 +42,9 @@ public class LabelVerticle extends AbstractVerticle {
         final JsonObject mongoConfig = config().getJsonObject(MONGO);
         this.client = MongoClient.createShared(vertx, mongoConfig);
         this.collectionName = mongoConfig.getString("col_name");
+        this.address = config().getString(ADDRESS, "/search");
 
-        vertx.eventBus().consumer(config().getString(ADDRESS, "/search"), this::searchLabels);
+        vertx.eventBus().consumer(this.address, this::searchLabels);
     }
 
 
@@ -54,7 +56,7 @@ public class LabelVerticle extends AbstractVerticle {
     void searchLabels(Message<JsonObject> msg) {
 
         final JsonObject sq = msg.body();
-        LOG.trace("search:\n" + sq.encodePrettily());
+        LOG.debug("{}\n{}", address, sq.encodePrettily());
 
         //extract the string query
         final String query = "select metric".equals(sq.getString("target")) ? "" : sq.getString("target");

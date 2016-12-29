@@ -1,4 +1,4 @@
-package io.devcon5.metrics;
+package io.devcon5.metrics.demo1;
 
 import static io.devcon5.metrics.Constants.ADDRESS;
 import static io.devcon5.metrics.Constants.MONGO;

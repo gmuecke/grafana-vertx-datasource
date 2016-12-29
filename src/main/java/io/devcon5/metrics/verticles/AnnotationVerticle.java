@@ -32,14 +32,15 @@ public class AnnotationVerticle extends AbstractVerticle {
     private String collectionName;
 
     private RangeParser rangeParser = new RangeParser();
+    private String address;
 
     @Override
     public void start(Future<Void> startFuture) throws Exception {
         final JsonObject mongoConfig = config().getJsonObject(MONGO);
         this.client = MongoClient.createShared(vertx, mongoConfig);
         this.collectionName = mongoConfig.getString("col_name");
-
-        vertx.eventBus().consumer(config().getString(ADDRESS, "/annotations"), this::searchAnnotations);
+        this.address = config().getString(ADDRESS, "/annotations");
+        vertx.eventBus().consumer(address, this::searchAnnotations);
     }
 
     /**
@@ -50,7 +51,7 @@ public class AnnotationVerticle extends AbstractVerticle {
     private void searchAnnotations(final Message<JsonObject> msg) {
 
         final JsonObject annotation = msg.body();
-        LOG.trace("annotations:" + annotation.encodePrettily());
+        LOG.debug("{}\n{}",address, annotation.encodePrettily());
 
         //get the parameter from the request
         final String from = annotation.getJsonObject("range").getString("from");
@@ -70,7 +71,7 @@ public class AnnotationVerticle extends AbstractVerticle {
                 msg.reply(result.result()
                                 .stream()
                                 .map(a -> obj().put("annotation", an)
-                                               .put("time", a.getJsonObject("n").getString("begin"))
+                                               .put("time", a.getJsonObject("n").getLong("begin"))
                                                .put("title", a.getJsonObject("t").getString("name"))
                                                .put("tags", arr()))
                                 .collect(toJsonArray()));
@@ -80,9 +81,4 @@ public class AnnotationVerticle extends AbstractVerticle {
             }
         });
     }
-
-
-
-
-
 }

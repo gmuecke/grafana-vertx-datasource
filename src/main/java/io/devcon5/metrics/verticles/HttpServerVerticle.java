@@ -45,7 +45,7 @@ public class HttpServerVerticle extends AbstractVerticle {
 
     protected void sendResponse(RoutingContext ctx, String response) {
 
-        LOG.debug("> Sending response \n{}", response);
+        LOG.trace("> Sending response \n{}", response);
         ctx.response().putHeader("content-type", "application/obj; charset=utf-8").end(response);
     }
 
