@@ -1,0 +1,34 @@
+[{
+  "$match": {
+    "$and": [
+      {"t.name": {"$in": ["EEV_Start"]}},
+      {"n.begin": {"$gte": 1451513179822}},
+      {"n.begin": {"$lte": 1483135579822}}
+    ]}},{
+  "$group" : {
+    "_id" : {
+      "name" : "$t.name",
+      "interval" : {
+        "$trunc": { "$divide" : [ {
+          "$subtract" : [ "$n.begin", 1451515547275 ]
+        }, 21600000 ]}
+      },
+      "ts" : {
+        "$add" : [ 1451513179822, {
+          "$multiply" : [ 21600000, {"$trunc": {
+            "$divide" : [ {
+              "$subtract" : [ "$n.begin", 1451515547275 ]
+            }, 21600000 ]}
+          } ]
+        } ]
+      }
+    },
+    "count" : {"$sum" : 1},
+    "sum" : {"$sum" : "$n.value"},
+    "avg" : {"$avg" : "$n.value"},
+    "min" : {"$min" : "$n.value"},
+    "max" : {"$max" : "$n.value"}
+  }
+}, {
+  "$sort": {"_id.ts": 1}
+}]

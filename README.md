@@ -174,7 +174,7 @@ timestamp in ms).
 
 Following a short description of the demos in this project.
 
-## Demo 1
+## Demo 1 - Retrieving Datapoints
 
 Run the `io.devcon5.metrics.demo1.SimpleGrafanaDatasource` 
 it shows the basic deployement of verious verticles, each fulfilling it's own purpose.
@@ -183,7 +183,7 @@ The datasource can be configured to some extend (mongo coordinate, http port).
 Querying for timeseries datapoints using this example can be long for longer durations as it is only processed 
 single-threaded.
 
-## Demo 2
+## Demo 2 - Splitting Requests into chunks
 
 Run the `io.devcon5.metrics.demo2.ScaledGrafanaDatasource` 
 it shows how verticles can be scaled. This example processes the timeseries query in parallel. It splits the
@@ -194,7 +194,29 @@ The example deploys as many verticles for processing the chunk requests as there
 each query request is split into the same amount of chunk requests. Each chunk request represents a sub range of
 the initial time range.
 
-## Demo 3
+#### Why does the number of instances does not improvd the overall response time?
+Because most of the time is lost in querying the DB. The larger the result set, the longer it takes. Merging the
+data back into one result set is relatively fast. By splitting up the request into multiple sub requests, the DB querying
+can be done in parallel, which speeds up the overall process. And because the actor for processing the sub-requests
+is waiting most of the time for the DB, a single actor can process all the sub-requests alone.
+
+Most of the CPU time however, is spent on the DB side. The Vert.x datasource waits most of the time for the responses
+so it doesn't matter, how many instances are deployed - apart from HA capabilities (see next demo).
+
+Further, experiments indicate, the optimum in response time can be achieved, by creating as many chunks as there are
+physical cores available to process the parallel queries on the DB side. I.e. use 8 chunks on a 8 core CPU.
+
+## Demo 3 - Clustering
 This is a variation of Demo 2, but with a distributed event bus. Although this can run locally, the distributed
 event bus can stretch accross multiple machines, allowing to process even large datasats.
 
+## Demo 4 - Aggregation
+The Grafana query requests contain two values which have not been processed so far - interval and maxDatapoints.
+So from a Grafana perspective we don't need more than the requested datapoints. But we could use this
+information to reduce the amount of data retrieved and returned by aggregating datapoints within an interval.
+For this purpose we can leverage the database capabilities, specifically the aggregation framework of MongoDB
+
+## Demo 5 - Percentiles
+Unlike the retrieval of the datapoints, calculating the percentiles for the entire range requires some computation.
+As computational tasks may easily block the event loop, we delegate this to worker verticles that run in a 
+dedicated thread.

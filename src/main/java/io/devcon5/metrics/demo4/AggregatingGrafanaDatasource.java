@@ -1,15 +1,15 @@
-package io.devcon5.metrics.demo2;
+package io.devcon5.metrics.demo4;
 
 import static io.devcon5.metrics.Constants.ADDRESS;
 import static io.devcon5.metrics.Constants.DELEGATE_ADDRESS;
 import static io.devcon5.metrics.Constants.MONGO;
 import static io.devcon5.metrics.Constants.PARALLELISM;
 
-import io.devcon5.metrics.verticles.SplitMergeTimeSeriesVerticle;
+import io.devcon5.metrics.verticles.AggregateTimeSeriesVerticle;
 import io.devcon5.metrics.verticles.AnnotationVerticle;
 import io.devcon5.metrics.verticles.HttpServerVerticle;
 import io.devcon5.metrics.verticles.LabelVerticle;
-import io.devcon5.metrics.verticles.SimpleTimeSeriesVerticle;
+import io.devcon5.metrics.verticles.SplitMergeTimeSeriesVerticle;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
@@ -18,7 +18,7 @@ import io.vertx.core.json.JsonObject;
 /**
  *
  */
-public class ScaledGrafanaDatasource extends AbstractVerticle {
+public class AggregatingGrafanaDatasource extends AbstractVerticle {
 
     public static void main(String... args) {
 
@@ -30,14 +30,14 @@ public class ScaledGrafanaDatasource extends AbstractVerticle {
         final JsonObject httpConfig = new JsonObject().put("http.port", 3339);
         int parallelism = Runtime.getRuntime().availableProcessors();
 
-        vertx.deployVerticle(SimpleTimeSeriesVerticle.class.getName(),
-                             new DeploymentOptions().setInstances(parallelism) //no effect
+        vertx.deployVerticle(AggregateTimeSeriesVerticle.class.getName(),
+                             new DeploymentOptions().setInstances(1)
                                                     .setConfig(new JsonObject().put(ADDRESS, "/queryChunks")
                                                                                .put(MONGO, mongoConfig)));
         vertx.deployVerticle(SplitMergeTimeSeriesVerticle.class.getName(),
                              new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/query")
                                                                                .put(DELEGATE_ADDRESS, "/queryChunks")
-                                                                               .put(PARALLELISM, 8) //big effect
+                                                                               .put(PARALLELISM, 8)
                                                                                .put(MONGO, mongoConfig)));
         vertx.deployVerticle(AnnotationVerticle.class.getName(),
                              new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/annotations")

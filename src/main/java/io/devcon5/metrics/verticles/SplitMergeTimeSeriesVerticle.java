@@ -59,13 +59,15 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
         final Range range = rangeParser.parse(query.getJsonObject("range").getString("from"),
                                               query.getJsonObject("range").getString("to"));
         final Integer limit = query.getInteger("maxDataPoints");
+        final String interval = query.getString("interval");
 
         List<Future> futures = range.split(cpuCores)
                                     .stream()
                                     .map(rc -> Tuple.of(obj().put("range",
                                                                   obj().put("from", rc.getStartString())
                                                                        .put("to", rc.getEndString()))
-                                                             .put("mexDataPoints", limit / cpuCores)
+                                                             .put("interval", interval)
+                                                             .put("maxDataPoints", limit / cpuCores)
                                                              .put("targets", query.getJsonArray("targets")),
                                                         Future.<Message<JsonObject>>future()))
                                     .map(tup -> {

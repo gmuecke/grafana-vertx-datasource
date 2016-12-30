@@ -2,6 +2,7 @@ package io.devcon5.metrics.verticles;
 
 import static io.devcon5.metrics.Constants.ADDRESS;
 import static io.devcon5.metrics.Constants.MONGO;
+import static io.devcon5.vertx.mongo.Aggregation.*;
 import static io.devcon5.vertx.mongo.Filters.$and;
 import static io.devcon5.vertx.mongo.Filters.$gte;
 import static io.devcon5.vertx.mongo.Filters.$in;
@@ -13,6 +14,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 import java.util.stream.Collectors;
 
+import io.devcon5.metrics.util.IntervalParser;
 import io.devcon5.metrics.util.Range;
 import io.devcon5.metrics.util.RangeParser;
 import io.vertx.core.AbstractVerticle;
@@ -20,20 +22,20 @@ import io.vertx.core.Future;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import io.vertx.ext.mongo.FindOptions;
 import io.vertx.ext.mongo.MongoClient;
 import org.slf4j.Logger;
 
 /**
  *
  */
-public class SimpleTimeSeriesVerticle extends AbstractVerticle {
+public class AggregateTimeSeriesVerticle extends AbstractVerticle {
 
-    private static final Logger LOG = getLogger(SimpleTimeSeriesVerticle.class);
+    private static final Logger LOG = getLogger(AggregateTimeSeriesVerticle.class);
 
     private MongoClient client;
     private String collectionName;
     private RangeParser rangeParser = new RangeParser();
+    private IntervalParser intervalParser = new IntervalParser();
     private String address;
 
     @Override
@@ -57,42 +59,59 @@ public class SimpleTimeSeriesVerticle extends AbstractVerticle {
         final JsonObject query = msg.body();
         LOG.debug("{}\n{}", address, query.encodePrettily());
 
-        // get the paramsters from the query
+        // get the parameters from the query
         final Range range = rangeParser.parse(query.getJsonObject("range").getString("from"),
                                               query.getJsonObject("range").getString("to"));
         final JsonArray targets = query.getJsonArray("targets")
                                        .stream()
                                        .map(o -> ((JsonObject) o).getString("target"))
                                        .collect(toJsonArray());
+        final long interval = intervalParser.parseToLong(query.getString("interval"));
+        final int maxDataPoints = query.getInteger("maxDataPoints");
 
         //build the query and options
         final JsonObject tsQuery = $and(obj("n.begin", $gte(range.getStart())),
                                         obj("n.begin", $lte(range.getEnd())),
                                         obj("t.name", $in(targets)));
 
-        final FindOptions findOptions = new FindOptions().setFields(obj().put("t.name", 1)
-                                                                         .put("n.begin", 1)
-                                                                         .put("n.value", 1)
-                                                                         .put("_id", 0)).setSort(obj("n.begin", 1));
-
         long start = System.currentTimeMillis();
-        //execute search and process response
-        client.findWithOptions(collectionName, tsQuery, findOptions, result -> {
+
+        JsonObject cmd = obj().put("aggregate", collectionName)
+                              .put("pipeline",
+                                   arr($match($and(obj("t.name", $in(targets)),
+                                                   obj("n.begin", $gte(range.getStart())),
+                                                   obj("n.begin",$lte(range.getEnd())))),
+                                       $group(obj().put("_id",
+                                                        obj().put("name", "$t.name")
+                                                             .put("interval",$trunc($divide($subtract("$n.begin", range.getStart()),interval)))
+                                                             .put("ts", $add(range.getStart(),$multiply(interval,$trunc($divide($subtract("$n.begin", range.getStart()),interval))))))
+                                                   .put("count", $sum(1))
+                                                   .put("sum", $sum("$n.value"))
+                                                   .put("avg", $avg("$n.value"))
+                                                   .put("min", $min("$n.value"))
+                                                   .put("max", $max("$n.value"))),
+                                       $limit(maxDataPoints),
+                                       $sort(obj("_id.interval", 1))));
+
+        LOG.info("CMD:\n{}", cmd.encodePrettily());
+
+        client.runCommand("aggregate", cmd, res -> {
             long end = System.currentTimeMillis();
-            if (result.succeeded()) {
+
+            if (res.succeeded()) {
+                JsonObject resObj = res.result();
+                final JsonArray result = resObj.getJsonArray("result");
+
                 JsonArray response = targets.stream()
-                                            //  every timeseries is an {"target": label, "datapoints": [[value, ts],... ]}
                                             .map(target -> obj().put("target", target)
                                                                 .put("datapoints",
-                                                                     result.result()
-                                                                           .stream()
+                                                                     result.stream()
+                                                                           .map(r -> (JsonObject) r)
                                                                            .filter(r -> target.equals(r.getJsonObject(
-                                                                                   "t").getString("name")))
-                                                                           .map(json -> json.getJsonObject("n"))
-                                                                           //produce a grafana json datapoint [value,timestamp]
-                                                                           .map(dp -> arr(dp.getLong("value"),
-                                                                                          dp.getLong("begin")))
-                                                                           //collect all datapoint arrays to an array of arrays
+                                                                                   "_id").getString("name")))
+                                                                           .map(dp -> arr(dp.getLong("avg"),
+                                                                                          dp.getJsonObject("_id")
+                                                                                            .getLong("ts")))
                                                                            .collect(toJsonArray())))
                                             .collect(toJsonArray());
                 LOG.debug("Sending response with {} timeseries and {} datapoints (after {} ms)",
@@ -103,10 +122,11 @@ public class SimpleTimeSeriesVerticle extends AbstractVerticle {
                           (end - start));
                 msg.reply(response);
             } else {
-                LOG.error("Annotation query failed", result.cause());
+                LOG.error("Annotation query failed", res.cause());
                 msg.reply(arr());
             }
         });
+
     }
 
 }
