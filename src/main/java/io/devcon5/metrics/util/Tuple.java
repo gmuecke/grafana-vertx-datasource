@@ -32,5 +32,4 @@ public final class Tuple<T, U> {
         Objects.requireNonNull(first, "second tuple element must not be null");
         return new Tuple<>(first, second);
     }
-
 }
