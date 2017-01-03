@@ -10,6 +10,8 @@ import static io.devcon5.vertx.mongo.JsonFactory.arr;
 import static io.devcon5.vertx.mongo.JsonFactory.obj;
 import static io.devcon5.vertx.mongo.JsonFactory.toJsonArray;
 import static java.util.stream.Collector.Characteristics.CONCURRENT;
+import static java.util.stream.Collector.Characteristics.UNORDERED;
+import static java.util.stream.Collectors.toSet;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.util.HashMap;
@@ -42,13 +44,13 @@ import io.vertx.ext.mongo.FindOptions;
 import io.vertx.ext.mongo.MongoClient;
 
 /**
- *
+ * This verticle calculates percentiles in the JVM using Apache Commons Math. This means that all datapoints
+ * are retrieved from the DB and held in memory for processing
  */
 public class PercentilesVerticle extends AbstractVerticle {
 
-    public static final Set<Collector.Characteristics> CHARACTERISTICS = Stream.of(Collector.Characteristics.UNORDERED,
-            CONCURRENT)
-                                                                               .collect(Collectors.toSet());
+    protected static final Set<Collector.Characteristics> CHARACTERISTICS = Stream.of(UNORDERED,CONCURRENT)
+                                                                                  .collect(toSet());
 
     private static final Logger LOG = getLogger(PercentilesVerticle.class);
 
