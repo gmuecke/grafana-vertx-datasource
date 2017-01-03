@@ -26,6 +26,8 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.slf4j.Logger;
 
 import io.devcon5.metrics.util.IntervalParser;
 import io.devcon5.metrics.util.Range;
@@ -38,8 +40,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.FindOptions;
 import io.vertx.ext.mongo.MongoClient;
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.slf4j.Logger;
 
 /**
  *
@@ -47,13 +47,19 @@ import org.slf4j.Logger;
 public class PercentilesVerticle extends AbstractVerticle {
 
     public static final Set<Collector.Characteristics> CHARACTERISTICS = Stream.of(Collector.Characteristics.UNORDERED,
-                                                                                   CONCURRENT)
+            CONCURRENT)
                                                                                .collect(Collectors.toSet());
+
     private static final Logger LOG = getLogger(PercentilesVerticle.class);
+
     private MongoClient client;
+
     private String collectionName;
+
     private RangeParser rangeParser = new RangeParser();
+
     private IntervalParser intervalParser = new IntervalParser();
+
     private String address;
 
     @Override
@@ -79,7 +85,7 @@ public class PercentilesVerticle extends AbstractVerticle {
 
         // get the paramsters from the query
         final Range range = rangeParser.parse(query.getJsonObject("range").getString("from"),
-                                              query.getJsonObject("range").getString("to"));
+                query.getJsonObject("range").getString("to"));
         final long interval = intervalParser.parseToLong(query.getString("interval"));
         final int maxDataPoints = query.getInteger("maxDataPoints");
         final JsonArray targets = query.getJsonArray("targets")
@@ -89,8 +95,8 @@ public class PercentilesVerticle extends AbstractVerticle {
 
         //build the query and options
         final JsonObject tsQuery = $and(obj("n.begin", $gte(range.getStart())),
-                                        obj("n.begin", $lte(range.getEnd())),
-                                        obj("t.name", $in(targets)));
+                obj("n.begin", $lte(range.getEnd())),
+                obj("t.name", $in(targets)));
 
         final FindOptions findOptions = new FindOptions().setFields(obj().put("t.name", 1)
                                                                          .put("n.begin", 1)
@@ -102,7 +108,7 @@ public class PercentilesVerticle extends AbstractVerticle {
         client.findWithOptions(collectionName, tsQuery, findOptions, result -> {
 
             if (result.succeeded()) {
-                JsonArray resp = processResponse(range, maxDataPoints, targets, result);
+                JsonArray resp = processResponse(range, r -> range.splitEvery(interval), targets, result);
                 long end = System.currentTimeMillis();
                 LOG.debug(
                         "Sending response with {} timeseries and {} datapoints (after {} ms)",
@@ -112,21 +118,7 @@ public class PercentilesVerticle extends AbstractVerticle {
                             .collect(Collectors.summingInt(JsonArray::size)),
                         (end - start));
                 msg.reply(resp);
-                /*
-                vertx.executeBlocking(future -> future.complete(processResponse(range, maxDataPoints, targets, result)),
-                                      futResp -> {
-                                          long end = System.currentTimeMillis();
-                                          JsonArray resp = (JsonArray) futResp.result();
-                                          LOG.debug(
-                                                  "Sending response with {} timeseries and {} datapoints (after {} ms)",
-                                                  resp.size(),
-                                                  resp.stream()
-                                                      .map(o -> ((JsonObject) o).getJsonArray("datapoints"))
-                                                      .collect(Collectors.summingInt(JsonArray::size)),
-                                                  (end - start));
-                                          msg.reply(futResp.result());
-                                      });
-                                      */
+
             } else {
                 LOG.error("Annotation query failed", result.cause());
                 msg.reply(arr());
@@ -136,14 +128,11 @@ public class PercentilesVerticle extends AbstractVerticle {
     }
 
     private JsonArray processResponse(final Range range,
-                                      final int maxDataPoints,
+                                      final Function<Range, List<Range>> rangeSplitter,
                                       final JsonArray targets,
                                       final AsyncResult<List<JsonObject>> result) {
 
-        int numDatapoints = maxDataPoints / 8;
-        LOG.info("Splitting range into {} datapoints", numDatapoints);
-
-        final List<Range> intervals = range.split(numDatapoints);
+        final List<Range> intervals = rangeSplitter.apply(range);
         final List<JsonObject> datapoints = result.result();
 
         return targets.stream()
@@ -166,7 +155,7 @@ public class PercentilesVerticle extends AbstractVerticle {
                                                            final List<Range> intervals,
                                                            final List<JsonObject> datapoints) {
 
-        return Stream.of("max", "pcl99", "pcl95", "pcl90", "pcl80", "pcl50", "min")
+        return Stream.of("pcl99", "pcl95", "pcl90", "pcl80", "pcl50")
                      .parallel()
                      .map(label -> getTargetLabelMapper(datapoints, intervals).apply(targetName, label));
     }
@@ -211,28 +200,31 @@ public class PercentilesVerticle extends AbstractVerticle {
                                  List<Range> intervals,
                                  String statsLabel) {
 
-        return intervals.stream().map(range -> {
+        return intervals.stream()
+                        .map(range -> {
 
-            DescriptiveStatistics stats = calculateStatsForRange(datapoints, targetName, range);
-            switch (statsLabel) {
-                case "min":
-                    return datapoint(stats.getMin(), range.getStart());
-                case "pcl50":
-                    return datapoint(stats.getPercentile(50), range.getStart());
-                case "pcl80":
-                    return datapoint(stats.getPercentile(80), range.getStart());
-                case "pcl90":
-                    return datapoint(stats.getPercentile(90), range.getStart());
-                case "pcl95":
-                    return datapoint(stats.getPercentile(95), range.getStart());
-                case "pcl99":
-                    return datapoint(stats.getPercentile(99), range.getStart());
-                case "max":
-                    return datapoint(stats.getMax(), range.getStart());
-                default:
-                    return datapoint(0d, 0);
-            }
-        }).collect(toJsonArray());
+                            DescriptiveStatistics stats = calculateStatsForRange(datapoints, targetName, range);
+                            switch (statsLabel) {
+                                case "min":
+                                    return datapoint(stats.getMin(), range.getStart());
+                                case "pcl50":
+                                    return datapoint(stats.getPercentile(50), range.getStart());
+                                case "pcl80":
+                                    return datapoint(stats.getPercentile(80), range.getStart());
+                                case "pcl90":
+                                    return datapoint(stats.getPercentile(90), range.getStart());
+                                case "pcl95":
+                                    return datapoint(stats.getPercentile(95), range.getStart());
+                                case "pcl99":
+                                    return datapoint(stats.getPercentile(99), range.getStart());
+                                case "max":
+                                    return datapoint(stats.getMax(), range.getStart());
+                                default:
+                                    return datapoint(0d, 0);
+                            }
+                        })
+                        .filter(a -> !a.isEmpty())
+                        .collect(toJsonArray());
     }
 
     /**
@@ -265,7 +257,10 @@ public class PercentilesVerticle extends AbstractVerticle {
      */
     private JsonArray datapoint(final Double value, final long ts) {
 
-        return arr((value.isNaN() ? 0 : value), ts);
+        if (value.isNaN()) {
+            return arr();
+        }
+        return arr(value, ts);
     }
 
     /**
@@ -276,13 +271,13 @@ public class PercentilesVerticle extends AbstractVerticle {
     private Collector<Double, DescriptiveStatistics, DescriptiveStatistics> descStatsCollector() {
 
         return Collector.of(DescriptiveStatistics::new,
-                            DescriptiveStatistics::addValue,
-                            (s1, s2) -> DoubleStream.concat(DoubleStream.of(s1.getValues()),
-                                                            DoubleStream.of(s1.getValues()))
-                                                    .collect(DescriptiveStatistics::new,
-                                                             DescriptiveStatistics::addValue,
-                                                             (ds1, ds2) -> DoubleStream.of(s2.getValues())
-                                                                                       .forEach(s1::addValue)));
+                DescriptiveStatistics::addValue,
+                (s1, s2) -> DoubleStream.concat(DoubleStream.of(s1.getValues()),
+                        DoubleStream.of(s1.getValues()))
+                                        .collect(DescriptiveStatistics::new,
+                                                DescriptiveStatistics::addValue,
+                                                (ds1, ds2) -> DoubleStream.of(s2.getValues())
+                                                                          .forEach(s1::addValue)));
     }
 
     /**
@@ -320,10 +315,10 @@ public class PercentilesVerticle extends AbstractVerticle {
 
             return (m1, m2) -> Stream.concat(m1.entrySet().stream(), m2.entrySet().stream())
                                      .collect(Collectors.groupingBy(Map.Entry::getKey,
-                                                                    HashMap::new,
-                                                                    Collector.of(JsonArray::new,
-                                                                                 (arr, e) -> arr.addAll(e.getValue()),
-                                                                                 JsonArray::addAll)));
+                                             HashMap::new,
+                                             Collector.of(JsonArray::new,
+                                                     (arr, e) -> arr.addAll(e.getValue()),
+                                                     JsonArray::addAll)));
         }
 
         @Override

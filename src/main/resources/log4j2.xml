@@ -22,7 +22,10 @@
 		<Logger name="io.devcon5" level="TRACE" additivity="false">
 			<AppenderRef ref="Console" />
 		</Logger>
-		<Root level="error">
+		<Logger name="io.devcon5" level="TRACE" additivity="false">
+			<AppenderRef ref="Console" />
+		</Logger>
+		<Root level="info">
 			<AppenderRef ref="Console" />
 		</Root>
 	</Loggers>

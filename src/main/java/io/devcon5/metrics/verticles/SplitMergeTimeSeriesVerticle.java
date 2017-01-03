@@ -9,6 +9,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 
 import java.util.List;
 import java.util.stream.Collector;
+import org.slf4j.Logger;
 
 import io.devcon5.metrics.util.Range;
 import io.devcon5.metrics.util.RangeParser;
@@ -19,7 +20,6 @@ import io.vertx.core.Future;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import org.slf4j.Logger;
 
 /**
  *
@@ -31,7 +31,9 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
     private RangeParser rangeParser = new RangeParser();
 
     private int cpuCores;
+
     private String queryChunkAddress;
+
     private String address;
 
     @Override
@@ -57,19 +59,19 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
 
         // get the paramsters from the query
         final Range range = rangeParser.parse(query.getJsonObject("range").getString("from"),
-                                              query.getJsonObject("range").getString("to"));
+                query.getJsonObject("range").getString("to"));
         final Integer limit = query.getInteger("maxDataPoints");
         final String interval = query.getString("interval");
 
         List<Future> futures = range.split(cpuCores)
                                     .stream()
                                     .map(rc -> Tuple.of(obj().put("range",
-                                                                  obj().put("from", rc.getStartString())
-                                                                       .put("to", rc.getEndString()))
+                                            obj().put("from", rc.getStartString())
+                                                 .put("to", rc.getEndString()))
                                                              .put("interval", interval)
                                                              .put("maxDataPoints", limit / cpuCores)
                                                              .put("targets", query.getJsonArray("targets")),
-                                                        Future.<Message<JsonObject>>future()))
+                                            Future.<Message<JsonObject>>future()))
                                     .map(tup -> {
                                         vertx.eventBus()
                                              .send(queryChunkAddress, tup.getFirst(), tup.getSecond().completer());
@@ -95,17 +97,20 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
     private Collector<? super JsonArray, JsonArray, JsonArray> toMergedResult() {
 
         return Collector.of(JsonArray::new, (all, arr) -> {
-            arr.stream().map(o -> (JsonObject) o).forEach(newTs -> {
-                final String target = newTs.getString("target");
-                if (containsObjectWithKeyValue(all, "target", target)) {
-                    all.stream()
-                       .map(o -> (JsonObject) o)
-                       .filter(o -> matchesKeyWithValue(o, "target", target))
-                       .forEach(ex -> ex.getJsonArray("datapoints").addAll(newTs.getJsonArray("datapoints")));
-                } else {
-                    all.add(newTs);
-                }
-            });
+            arr.stream()
+               .map(o -> (JsonObject) o)
+               .sorted((ts1,ts2) -> ts1.getString("target").compareTo(ts2.getString("target")))
+               .forEach(newTs -> {
+                   final String target = newTs.getString("target");
+                   if (containsObjectWithKeyValue(all, "target", target)) {
+                       all.stream()
+                          .map(o -> (JsonObject) o)
+                          .filter(o -> matchesKeyWithValue(o, "target", target))
+                          .forEach(ex -> ex.getJsonArray("datapoints").addAll(newTs.getJsonArray("datapoints")));
+                   } else {
+                       all.add(newTs);
+                   }
+               });
         }, JsonArray::addAll);
     }
 

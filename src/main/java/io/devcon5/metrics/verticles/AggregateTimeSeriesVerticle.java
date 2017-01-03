@@ -13,6 +13,7 @@ import static io.devcon5.vertx.mongo.JsonFactory.toJsonArray;
 import static org.slf4j.LoggerFactory.getLogger;
 
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
 
 import io.devcon5.metrics.util.IntervalParser;
 import io.devcon5.metrics.util.Range;
@@ -23,7 +24,6 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoClient;
-import org.slf4j.Logger;
 
 /**
  *
@@ -70,12 +70,7 @@ public class AggregateTimeSeriesVerticle extends AbstractVerticle {
         final int maxDataPoints = query.getInteger("maxDataPoints");
 
         //build the query and options
-        final JsonObject tsQuery = $and(obj("n.begin", $gte(range.getStart())),
-                                        obj("n.begin", $lte(range.getEnd())),
-                                        obj("t.name", $in(targets)));
-
         long start = System.currentTimeMillis();
-
         JsonObject cmd = obj().put("aggregate", collectionName)
                               .put("pipeline",
                                    arr($match($and(obj("t.name", $in(targets)),
