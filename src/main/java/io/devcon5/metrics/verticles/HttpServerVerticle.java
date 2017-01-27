@@ -2,6 +2,8 @@ package io.devcon5.metrics.verticles;
 
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.util.Optional;
+
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.ext.web.Router;
@@ -25,11 +27,23 @@ public class HttpServerVerticle extends AbstractVerticle {
         router.options("/*").handler(this::options);
 
         //route all other messages to the event bus
+        router.get("/*").handler(ctx -> {
+            LOG.info("GET {}", ctx.normalisedPath());
+            ctx.next();
+        });
         router.post("/*")
               .handler(ctx -> vertx.eventBus()
                                    .send(ctx.normalisedPath(),
                                          ctx.getBodyAsJson(),
-                                         reply -> sendResponse(ctx, reply.result().body().toString())));
+                                         reply -> sendResponse(ctx, Optional.ofNullable(reply.result()).map(res -> res.body().toString()).orElse("[]"))));
+        router.get("/*")
+              .handler(ctx -> vertx.eventBus()
+                                   .send(ctx.normalisedPath(),
+                                         "GET",
+                                         reply -> sendResponse(ctx,
+                                                               Optional.ofNullable(reply.result())
+                                                                       .map(res -> res.body().toString())
+                                                                       .orElse(""))));
 
         vertx.createHttpServer()
              .requestHandler(router::accept)
@@ -46,7 +60,7 @@ public class HttpServerVerticle extends AbstractVerticle {
     protected void sendResponse(RoutingContext ctx, String response) {
 
         LOG.trace("> Sending response \n{}", response);
-        ctx.response().putHeader("content-type", "application/obj; charset=utf-8").end(response);
+        ctx.response().putHeader("content-type", "application/json; charset=utf-8").end(response);
     }
 
     /////////////// Helper methods

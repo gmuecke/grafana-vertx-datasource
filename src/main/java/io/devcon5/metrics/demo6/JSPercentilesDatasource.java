@@ -32,7 +32,7 @@ public class JSPercentilesDatasource {
         final JsonObject httpConfig = new JsonObject().put("http.port", 3339);
         int parallelism = Runtime.getRuntime().availableProcessors();
 
-        vertx.deployVerticle("js:io/devcon5/metrics/demo7/AggregatePercentilesVerticle.js",
+        vertx.deployVerticle("js:io/devcon5/metrics/demo6/AggregatePercentilesVerticle.js",
                 new DeploymentOptions().setInstances(1)
                                        .setConfig(new JsonObject().put(ADDRESS, "/queryChunks")
                                                                   .put(MONGO, mongoConfig)), result -> {

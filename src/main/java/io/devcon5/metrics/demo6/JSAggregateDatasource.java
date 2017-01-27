@@ -32,7 +32,7 @@ public class JSAggregateDatasource {
         final JsonObject httpConfig = new JsonObject().put("http.port", 3339);
         int parallelism = Runtime.getRuntime().availableProcessors();
 
-        vertx.deployVerticle("js:io/devcon5/metrics/demo7/AggregateTimeSeriesVerticle.js",
+        vertx.deployVerticle("js:io/devcon5/metrics/demo6/AggregateTimeSeriesVerticle.js",
                 new DeploymentOptions().setInstances(1)
                                        .setConfig(new JsonObject().put(ADDRESS, "/queryChunks")
                                                                   .put(MONGO, mongoConfig)), result -> {
