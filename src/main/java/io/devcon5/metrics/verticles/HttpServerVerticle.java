@@ -31,6 +31,10 @@ public class HttpServerVerticle extends AbstractVerticle {
             LOG.info("GET {}", ctx.normalisedPath());
             ctx.next();
         });
+        router.post("/*").handler(ctx -> {
+            LOG.info("POST {}", ctx.normalisedPath());
+            ctx.next();
+        });
         router.post("/*")
               .handler(ctx -> vertx.eventBus()
                                    .send(ctx.normalisedPath(),

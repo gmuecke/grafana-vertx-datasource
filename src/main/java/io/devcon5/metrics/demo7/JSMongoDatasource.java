@@ -1,6 +1,7 @@
 package io.devcon5.metrics.demo7;
 
 import static io.devcon5.metrics.Constants.ADDRESS;
+import static io.devcon5.metrics.Constants.DELEGATE_ADDRESS;
 import static io.devcon5.metrics.Constants.MONGO;
 import static org.slf4j.LoggerFactory.getLogger;
 
@@ -18,6 +19,7 @@ public class JSMongoDatasource {
     private static final Logger LOG = getLogger(JSMongoDatasource.class);
 
     public static void main(String... args) {
+
         Vertx vertx = Vertx.vertx();
 
         final JsonObject mongoConfig = new JsonObject().put("connection_string", "mongodb://localhost:27017/rtm")
@@ -25,9 +27,16 @@ public class JSMongoDatasource {
         final JsonObject httpConfig = new JsonObject().put("http.port", 5050);
 
         vertx.deployVerticle("js:io/devcon5/metrics/demo7/CollectionsVerticle.js",
-                new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/collections")
-                                                                  .put(MONGO, mongoConfig)));
+                             new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/collections")
+                                                                               .put(MONGO, mongoConfig)));
+        vertx.deployVerticle("js:io/devcon5/metrics/demo7/QueryVerticle.js",
+                             new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/queryTarget")
+                                                                               .put(MONGO, mongoConfig)));
 
+        vertx.deployVerticle(TargetSplitVerticle.class.getName(),
+                             new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/query")
+                                                                               .put(DELEGATE_ADDRESS, "/queryTarget")
+                                                                               .put(MONGO, mongoConfig)));
         vertx.deployVerticle(HttpServerVerticle.class.getName(), new DeploymentOptions().setConfig(httpConfig));
     }
 }
