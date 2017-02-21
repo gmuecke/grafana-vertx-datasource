@@ -15,76 +15,55 @@ if (address == null) {
 
 vertx.eventBus().consumer("/" + dbname + address, function (msg) {
 
-    var query = msg.body();
+    var target = msg.body();
 
-    var range = query.range;
-    var interval = query.interval;
-    var maxDataPoints = query.maxDataPoints;
-    var target = query.target;
+    var range = target.range;
+    var interval = target.interval;
+    var maxDataPoints = target.maxDataPoints;
+    var query = target.query;
 
-    var tsField = query.tsField;
-    var from = {};
-    var to = {};
-    console.log(JSON.stringify(range));
-    from[tsField] = {"$gte": range.from};
-    to[tsField] = {"$lte": range.to};
-    console.log(JSON.stringify(from));
-    console.log(JSON.stringify(to));
-
-    //build the command with the aggegation pipelnine
-    var cmd = {
-        "aggregate": target.collection,
-        "pipeline": [
-            {
-                "$match": {
-                    "$and": [
-                        target.query,
-                        from,
-                        to
-                    ]
-                }
-            },
-            {
-                "$group": {
-                    "_id": {
-                        //TODO define name mapping in client
-                        "name": "$t.name",
-                        "interval": {"$trunc": {"$divide": [{"$subtract": ["$" + tsField, range.from]}, interval]}},
-                        "ts": {"$add": [range.from, {"$multiply": [interval, {"$trunc": {"$divide": [{"$subtract": ["$" + tsField, range.from]}, interval]}}]}]}
-                    },
-                    "count": {"$sum": 1},
-                    //TODO define value mapping in client
-                    "sum": {"$sum": "$n.value"},
-                    "avg": {"$avg": "$n.value"},
-                    "min": {"$min": "$n.value"},
-                    "max": {"$max": "$n.value"}
-                }
-            },
-            {"$limit": maxDataPoints},
-            {
-                "$sort": {"_id.interval": 1}
-            }
-        ]
-    };
-
-    console.log(JSON.stringify(cmd));
-
-    mongo.runCommand("aggregate", cmd, function (res, res_err) {
-
-        if (res_err == null) {
-            var result = res.result;
-            var datapoints = [];
-            console.log(JSON.stringify(result));
-            for (var j = 0; j < result.length; j++) {
-                var rawDataPoint = result[j];
-                datapoints.push([rawDataPoint[target.aggregation], rawDataPoint._id.ts])
-            }
-            msg.reply({"target": target, "datapoints": datapoints});
-        } else {
-            console.error("Annotation query failed" + res_err);
-            msg.reply([]);
+    vertx.eventBus().send("build::aggregationPipeline", {
+            query: query.mongoQuery,
+            range: range,
+            interval: interval,
+            tsField: query.tsField,
+            maxDataPoints: maxDataPoints,
+            nameMap: query.labelField,
+            valueMap: query.aggregation.field,
+            aggregation: query.aggregation.fun.name,
+            params : query.aggregation.fun.params
         }
-    });
+        , function (reply) {
 
+            var cmd = {
+                "aggregate": query.collection,
+                "pipeline": reply.body(),
+                "allowDiskUse" : true
+            };
+            console.log(JSON.stringify(cmd));
+
+            mongo.runCommand("aggregate", cmd, function (res, res_err) {
+
+                if (res_err == null) {
+                    var result = res.result;
+                    console.log(JSON.stringify(result));
+                    var datapoints = [];
+                    var label = "unknown";
+                    for (var j = 0; j < result.length; j++) {
+                        var rawDataPoint = result[j];
+                        datapoints.push([rawDataPoint.value, rawDataPoint._id.ts]);
+
+                        //TODO this is hacky
+                        if (label == "unknown") {
+                            label = rawDataPoint._id.name;
+                        }
+                    }
+                    msg.reply({"target": label, "datapoints": datapoints});
+                } else {
+                    console.error("Annotation query failed" + res_err);
+                    msg.reply([]);
+                }
+            });
+        });
 });
 

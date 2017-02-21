@@ -65,24 +65,25 @@ public class TargetSplitVerticle extends AbstractVerticle {
                                               query.getJsonObject("range").getString("to"));
         final long interval = intervalParser.parseToLong(query.getString("interval"));
         final int maxDataPoints = query.getInteger("maxDataPoints");
-        final String tsField = query.getString("tsField");
+        final JsonObject rangeObj = obj().put("from", range.getStart()).put("to", range.getEnd());
         final JsonArray targets = query.getJsonArray("targets");
-        final JsonObject rangeObj = obj().put("from", range.getStart())
-                                         .put("to", range.getEnd());
 
         List<Future> futures = targets.stream()
-                                    .map(target -> Tuple.of(obj().put("range", rangeObj)
-                                                             .put("interval", interval)
-                                                             .put("maxDataPoints", maxDataPoints)
-                                                             .put("tsField", tsField)
-                                                             .put("target", target),
-                                                        Future.<Message<JsonObject>>future()))
-                                    .map(tup -> {
-                                        vertx.eventBus()
-                                             .send("/" + this.dbName + queryTargetAddress, tup.getFirst(), tup.getSecond().completer());
-                                        return tup.getSecond();
-                                    })
-                                    .collect(toList());
+                                      .map(target -> Tuple.of(obj().put("range", rangeObj)
+                                                                   .put("interval", interval)
+                                                                   .put("maxDataPoints", maxDataPoints)
+                                                                   .put("query",
+                                                                        ((JsonObject) target).getJsonObject("query")),
+                                                              Future.<Message<JsonObject>>future()))
+                                      .map(tup -> {
+                                          LOG.info("Target: \n{}", tup.getFirst().encodePrettily());
+                                          vertx.eventBus()
+                                               .send("/" + this.dbName + queryTargetAddress,
+                                                     tup.getFirst(),
+                                                     tup.getSecond().completer());
+                                          return tup.getSecond();
+                                      })
+                                      .collect(toList());
 
         CompositeFuture.all(futures).setHandler(result -> {
             if (result.succeeded()) {
@@ -90,6 +91,7 @@ public class TargetSplitVerticle extends AbstractVerticle {
                                 .list()
                                 .stream()
                                 .map(o -> (Message) o)
+                                .peek(m -> LOG.info("{}", m.body()))
                                 .map(m -> (JsonObject) m.body())
                                 .collect(toJsonArray()));
                 LOG.info("TIME: response sent after {} ms", (System.currentTimeMillis() - start));

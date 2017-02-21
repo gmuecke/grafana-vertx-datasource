@@ -1,3 +1,6 @@
+/**
+ * This Verticle delivers structural information about the database
+ */
 var MongoClient = require("vertx-mongo-js/mongo_client");
 var config = Vertx.currentContext().config();
 var dbname = config.mongo.db_name;
@@ -18,6 +21,7 @@ mongo.getCollections(function(res, res_err) {
         res.forEach(function(c){
             collectionNames.push(c);
             vertx.eventBus().consumer("/" + dbname + '/' + c + '/propnames', fieldsResponse(c));
+            vertx.eventBus().consumer("/" + dbname + '/' + c + '/distinct', namesResponse(c));
         });
     } else {
         console.error(res_err);
@@ -96,6 +100,21 @@ function fieldsResponse (collection) {
         mongo.findOne(collection, {}, {_id: 0}, function(res, res_err){
             if(res_err == null) {
                 msg.reply(collectPropNames(res));
+            } else {
+                msg.reply([])
+            }
+        })
+    }
+}
+
+function namesResponse(collection){
+    // the method that performs the actual lookup and the result transformation
+    return function(msg) {
+        console.log(JSON.stringify(msg));
+        var fieldName = msg.body().property;
+        mongo.distinct(collection, fieldName, 'java.lang.String' ,function(res, res_err){
+            if(res_err == null) {
+                msg.reply(res);
             } else {
                 msg.reply([])
             }
