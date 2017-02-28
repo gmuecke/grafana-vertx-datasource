@@ -1,8 +1,6 @@
 package io.devcon5.metrics.demo1;
 
-import static io.devcon5.metrics.Constants.ADDRESS;
-import static io.devcon5.metrics.Constants.MONGO;
-
+import io.devcon5.metrics.util.Config;
 import io.devcon5.metrics.verticles.AnnotationVerticle;
 import io.devcon5.metrics.verticles.HttpServerVerticle;
 import io.devcon5.metrics.verticles.LabelVerticle;
@@ -20,22 +18,19 @@ public class SimpleGrafanaDatasource extends AbstractVerticle {
     public static void main(String... args) {
 
         final Vertx vertx = Vertx.vertx();
+        final JsonObject config = Config.fromFile("config/demo1.json");
 
-        final JsonObject mongoConfig = new JsonObject().put("host", "localhost")
-                                                 .put("db_name", "rtm")
-                                                 .put("col_name", "measurements");
-        final JsonObject httpConfig = new JsonObject().put("http.port", 3339);
-
-        vertx.deployVerticle(new SimpleTimeSeriesVerticle(),
-                             new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/query")
-                                                                               .put(MONGO, mongoConfig)));
-        vertx.deployVerticle(new AnnotationVerticle(),
-                             new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/annotations")
-                                                                               .put(MONGO, mongoConfig)));
-        vertx.deployVerticle(new LabelVerticle(),
-                             new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/search")
-                                                                               .put(MONGO, mongoConfig)));
-        vertx.deployVerticle(new HttpServerVerticle(), new DeploymentOptions().setConfig(httpConfig));
+        vertx.deployVerticle(new SimpleGrafanaDatasource(), new DeploymentOptions().setConfig(config));
     }
 
+    @Override
+    public void start() throws Exception {
+
+        JsonObject config = Vertx.currentContext().config();
+        DeploymentOptions opts = new DeploymentOptions().setConfig(config);
+        vertx.deployVerticle(new SimpleTimeSeriesVerticle(), opts);
+        vertx.deployVerticle(new AnnotationVerticle(), opts);
+        vertx.deployVerticle(new LabelVerticle(), opts);
+        vertx.deployVerticle(new HttpServerVerticle(), opts);
+    }
 }

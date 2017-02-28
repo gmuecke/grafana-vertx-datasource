@@ -11,12 +11,12 @@ var address = config.address;
 if (address == null) {
     address = "/query";
 }
-
 ////// Mongo Initialization
 var MongoClient = require("vertx-mongo-js/mongo_client");
 var mongoconfig = config.mongo;
 var mongoClient = MongoClient.createShared(vertx, mongoconfig);
 var collection = mongoconfig.col_name;
+
 
 
 vertx.eventBus().consumer(address, function (msg) {
@@ -75,7 +75,7 @@ vertx.eventBus().consumer(address, function (msg) {
                 var datapoints = [];
                 for (var j = 0; j < result.length; j++) {
                     var rawDataPoint = result[j];
-                    if (target === rawDataPoint._id.name) {
+                    if (targets[i] === rawDataPoint._id.name) {
                         datapoints.push([rawDataPoint.avg, rawDataPoint._id.ts])
                     }
                 }

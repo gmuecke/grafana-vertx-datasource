@@ -1,0 +1,9 @@
+{
+  "mongo" : {
+    "host": "localhost",
+    "db_name" : "rtm",
+    "col_name" : "measurements"
+  },
+  "http.port" : 3339,
+  "parallelism": 16
+}

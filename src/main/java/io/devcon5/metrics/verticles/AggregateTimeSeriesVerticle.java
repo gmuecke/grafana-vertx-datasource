@@ -12,8 +12,8 @@ import static io.devcon5.vertx.mongo.JsonFactory.obj;
 import static io.devcon5.vertx.mongo.JsonFactory.toJsonArray;
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.util.Arrays;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
 
 import io.devcon5.metrics.util.IntervalParser;
 import io.devcon5.metrics.util.Range;
@@ -24,6 +24,7 @@ import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoClient;
+import org.slf4j.Logger;
 
 /**
  *
@@ -71,15 +72,72 @@ public class AggregateTimeSeriesVerticle extends AbstractVerticle {
 
         //build the query and options
         long start = System.currentTimeMillis();
+
+        /* the mongo aggregation pipeline:
+        [
+            {
+                "$match": {
+                    "$and": [
+                        {"t.name": {"$in": targets}},
+                        {"n.begin": {"$gte": range.start}},
+                        {"n.begin": {"$lte": range.end}}
+                    ]
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "name": "$t.name",
+                        //get the interval number for each datapoint
+                        // intervalNo = trunc( (n.begin - range.start) / interval )
+                        "interval": {"$trunc": {"$divide": [{"$subtract": ["$n.begin", range.start]}, interval]}},
+                        //get the interval timestamp
+                        // ts = range.start + intervalNo * interval
+                        "ts": {"$add": [range.start, {"$multiply": [interval, {"$trunc": {"$divide": [{"$subtract": ["$n.begin", range.start]}, interval]}}]}]}
+                    },
+                    "count": {"$sum": 1},
+                    "sum": {"$sum": "$n.value"},
+                    "avg": {"$avg": "$n.value"},
+                    "min": {"$min": "$n.value"},
+                    "max": {"$max": "$n.value"}
+                }
+            },
+            {"$limit": maxDataPoints},
+            {
+                "$sort": {"_id.interval": 1}
+            }
+        ]
+         */
+        /* in java
+        // without helper methods:
+
+        JsonArray pipeline = new JsonArray();
+        pipeline.add(new JsonObject().put("$match",
+            new JsonObject().put("$and", new JsonArray().add(new JsonObject().put("t.name", new JsonObject().put("$in", targets)))
+                                                        .add(new JsonObject().put("n.begin", new JsonObject().put("$gte", range.getStart())))
+                                                        .add(new JsonObject().put("n.begin", new JsonObject().put("$lte", range.getStart())))
+            )))
+                .add(...)
+
+        */
+        //with helper methods
         JsonObject cmd = obj().put("aggregate", collectionName)
                               .put("pipeline",
                                    arr($match($and(obj("t.name", $in(targets)),
                                                    obj("n.begin", $gte(range.getStart())),
-                                                   obj("n.begin",$lte(range.getEnd())))),
+                                                   obj("n.begin", $lte(range.getEnd())))),
                                        $group(obj().put("_id",
                                                         obj().put("name", "$t.name")
-                                                             .put("interval",$trunc($divide($subtract("$n.begin", range.getStart()),interval)))
-                                                             .put("ts", $add(range.getStart(),$multiply(interval,$trunc($divide($subtract("$n.begin", range.getStart()),interval))))))
+                                                             .put("interval",
+                                                                  $trunc($divide($subtract("$n.begin",
+                                                                                           range.getStart()),
+                                                                                 interval)))
+                                                             .put("ts",
+                                                                  $add(range.getStart(),
+                                                                       $multiply(interval,
+                                                                                 $trunc($divide($subtract("$n.begin",
+                                                                                                          range.getStart()),
+                                                                                                interval))))))
                                                    .put("count", $sum(1))
                                                    .put("sum", $sum("$n.value"))
                                                    .put("avg", $avg("$n.value"))
@@ -97,18 +155,11 @@ public class AggregateTimeSeriesVerticle extends AbstractVerticle {
                 JsonObject resObj = res.result();
                 final JsonArray result = resObj.getJsonArray("result");
 
-                JsonArray response = targets.stream()
-                                            .map(target -> obj().put("target", target)
-                                                                .put("datapoints",
-                                                                     result.stream()
-                                                                           .map(r -> (JsonObject) r)
-                                                                           .filter(r -> target.equals(r.getJsonObject(
-                                                                                   "_id").getString("name")))
-                                                                           .map(dp -> arr(dp.getLong("avg"),
-                                                                                          dp.getJsonObject("_id")
-                                                                                            .getLong("ts")))
-                                                                           .collect(toJsonArray())))
-                                            .collect(toJsonArray());
+                //option 1 - with one aggregation
+                JsonArray response = singleAggregation(targets, result, "avg");
+                //option 2 - with multiple aggregations + dynamic targets
+                //JsonArray response = singleAggregation(targets, result, "avg", "sum", "count", "min", "max");
+
                 LOG.debug("Sending response with {} timeseries and {} datapoints (after {} ms)",
                           response.size(),
                           response.stream()
@@ -124,4 +175,22 @@ public class AggregateTimeSeriesVerticle extends AbstractVerticle {
 
     }
 
+    private JsonArray singleAggregation(final JsonArray targets, final JsonArray result, final String... aggregations) {
+
+        return targets.stream()
+                      .flatMap(target -> Arrays.stream(aggregations)
+                                               .map(agg -> obj().put("target", target + "_" + agg)
+                                                                .put("datapoints", mapDatapoints(result, target, agg))))
+                      .collect(toJsonArray());
+
+    }
+
+    private JsonArray mapDatapoints(final JsonArray result, final Object target, final String agg) {
+
+        return result.stream()
+                     .map(r -> (JsonObject) r)
+                     .filter(r -> target.equals(r.getJsonObject("_id").getString("name"))) //filter by target name
+                     .map(dp -> arr(dp.getLong(agg), dp.getJsonObject("_id").getLong("ts"))) //a datapoint
+                     .collect(toJsonArray());
+    }
 }

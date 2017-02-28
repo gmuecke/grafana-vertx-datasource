@@ -19,10 +19,7 @@
 		</Console>
 	</appenders>
 	<Loggers>
-		<Logger name="io.devcon5" level="TRACE" additivity="false">
-			<AppenderRef ref="Console" />
-		</Logger>
-		<Logger name="io.devcon5" level="TRACE" additivity="false">
+		<Logger name="io.devcon5" level="DEBUG" additivity="false">
 			<AppenderRef ref="Console" />
 		</Logger>
 		<Root level="info">

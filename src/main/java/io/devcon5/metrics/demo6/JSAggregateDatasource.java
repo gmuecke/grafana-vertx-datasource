@@ -1,58 +1,55 @@
 package io.devcon5.metrics.demo6;
 
 import static io.devcon5.metrics.Constants.ADDRESS;
-import static io.devcon5.metrics.Constants.DELEGATE_ADDRESS;
-import static io.devcon5.metrics.Constants.MONGO;
-import static io.devcon5.metrics.Constants.PARALLELISM;
 import static org.slf4j.LoggerFactory.getLogger;
 
-import org.slf4j.Logger;
-
+import io.devcon5.metrics.util.Config;
 import io.devcon5.metrics.verticles.AnnotationVerticle;
 import io.devcon5.metrics.verticles.HttpServerVerticle;
 import io.devcon5.metrics.verticles.LabelVerticle;
 import io.devcon5.metrics.verticles.SplitMergeTimeSeriesVerticle;
+import io.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
+import org.slf4j.Logger;
 
 /**
  *
  */
-public class JSAggregateDatasource {
+public class JSAggregateDatasource extends AbstractVerticle{
 
     private static final Logger LOG = getLogger(JSAggregateDatasource.class);
 
     public static void main(String... args) {
         Vertx vertx = Vertx.vertx();
 
-        final JsonObject mongoConfig = new JsonObject().put("connection_string", "mongodb://localhost:27017")
-                                                       .put("db_name", "rtm")
-                                                       .put("col_name", "measurements");
-        final JsonObject httpConfig = new JsonObject().put("http.port", 3339);
-        int parallelism = Runtime.getRuntime().availableProcessors();
+        final JsonObject config = Config.fromFile("config/demo6.json");
+        vertx.deployVerticle(new JSAggregateDatasource(), new DeploymentOptions().setConfig(config));
 
-        vertx.deployVerticle("js:io/devcon5/metrics/demo6/AggregateTimeSeriesVerticle.js",
-                new DeploymentOptions().setInstances(1)
-                                       .setConfig(new JsonObject().put(ADDRESS, "/queryChunks")
-                                                                  .put(MONGO, mongoConfig)), result -> {
+
+    }
+
+    @Override
+    public void start() throws Exception {
+
+        JsonObject config = Vertx.currentContext().config();
+        DeploymentOptions opts = new DeploymentOptions().setConfig(config);
+        DeploymentOptions chunkOpts = new DeploymentOptions().setConfig(config.copy().put(ADDRESS, "/queryChunk"))
+                                                             //.setInstances(config.getInteger(PARALLELISM))
+                                                             //.setWorker(true)
+        ;
+
+        vertx.deployVerticle("js:io/devcon5/metrics/demo6/AggregateTimeSeriesVerticle.js",chunkOpts, result -> {
                     if (result.succeeded()) {
                         LOG.info("JS Verticle successfully deployed {}", result.result());
                     } else {
                         LOG.error("Failed to deploy JS Verticle", result.cause());
                     }
                 });
-        vertx.deployVerticle(SplitMergeTimeSeriesVerticle.class.getName(),
-                new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/query")
-                                                                  .put(DELEGATE_ADDRESS, "/queryChunks")
-                                                                  .put(PARALLELISM, 8)
-                                                                  .put(MONGO, mongoConfig)));
-        vertx.deployVerticle(AnnotationVerticle.class.getName(),
-                new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/annotations")
-                                                                  .put(MONGO, mongoConfig)));
-        vertx.deployVerticle(LabelVerticle.class.getName(),
-                new DeploymentOptions().setConfig(new JsonObject().put(ADDRESS, "/search")
-                                                                  .put(MONGO, mongoConfig)));
-        vertx.deployVerticle(HttpServerVerticle.class.getName(), new DeploymentOptions().setConfig(httpConfig));
+        vertx.deployVerticle(SplitMergeTimeSeriesVerticle.class.getName(), opts);
+        vertx.deployVerticle(AnnotationVerticle.class.getName(), opts);
+        vertx.deployVerticle(LabelVerticle.class.getName(), opts);
+        vertx.deployVerticle(HttpServerVerticle.class.getName(), opts);
     }
 }

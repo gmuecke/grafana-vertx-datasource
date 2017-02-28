@@ -194,7 +194,7 @@ The example deploys as many verticles for processing the chunk requests as there
 each query request is split into the same amount of chunk requests. Each chunk request represents a sub range of
 the initial time range.
 
-#### Why does the number of instances does not improvd the overall response time?
+#### Why does the number of instances does not improve the overall response time?
 Because most of the time is lost in querying the DB. The larger the result set, the longer it takes. Merging the
 data back into one result set is relatively fast. By splitting up the request into multiple sub requests, the DB querying
 can be done in parallel, which speeds up the overall process. And because the actor for processing the sub-requests

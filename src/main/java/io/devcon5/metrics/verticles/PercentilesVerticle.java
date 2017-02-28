@@ -89,7 +89,6 @@ public class PercentilesVerticle extends AbstractVerticle {
         final Range range = rangeParser.parse(query.getJsonObject("range").getString("from"),
                 query.getJsonObject("range").getString("to"));
         final long interval = intervalParser.parseToLong(query.getString("interval"));
-        final int maxDataPoints = query.getInteger("maxDataPoints");
         final JsonArray targets = query.getJsonArray("targets")
                                        .stream()
                                        .map(o -> ((JsonObject) o).getString("target"))
