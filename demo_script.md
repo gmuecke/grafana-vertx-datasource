@@ -84,3 +84,8 @@ Percentiles
 Demo 6
 ======
 
+- walk through aggegation verticle
+- walk through percentiles verticle / pipeline
+- experiment with parallelism (4, 8, 16) -> 4 allow disk use
+- 
+

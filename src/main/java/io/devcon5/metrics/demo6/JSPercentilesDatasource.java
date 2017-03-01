@@ -11,6 +11,7 @@ import io.devcon5.metrics.verticles.SplitMergeTimeSeriesVerticle;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 
@@ -22,10 +23,28 @@ public class JSPercentilesDatasource extends AbstractVerticle{
     private static final Logger LOG = getLogger(JSPercentilesDatasource.class);
 
     public static void main(String... args) {
-        Vertx vertx = Vertx.vertx();
 
         final JsonObject config = Config.fromFile("config/demo6.json");
+
+        Vertx vertx = Vertx.vertx();
         vertx.deployVerticle(new JSPercentilesDatasource(), new DeploymentOptions().setConfig(config));
+
+         /*
+        Vertx vertx = Vertx.vertx();
+        vertx.deployVerticle(new JSAggregateDatasource(), new DeploymentOptions().setConfig(config));
+        */
+
+        VertxOptions opts = new VertxOptions().setClustered(true);
+        Vertx.clusteredVertx(opts, result -> {
+            if(result.succeeded()){
+                LOG.info("Cluster running");
+                Vertx cvertx = result.result();
+                cvertx.deployVerticle(new JSPercentilesDatasource(), new DeploymentOptions().setConfig(config));
+            } else {
+                LOG.error("Clustering failed");
+                throw new RuntimeException(result.cause());
+            }
+        });
     }
 
     @Override

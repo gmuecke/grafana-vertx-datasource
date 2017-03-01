@@ -38,6 +38,7 @@ vertx.eventBus().consumer(address, function (msg) {
     // http://www.dummies.com/education/math/statistics/how-to-calculate-percentiles-in-statistics/
     var cmd = {
         "aggregate": collection,
+        "allowDiskUse": true,
         "pipeline": [
             {
                 "$match": {
