@@ -30,7 +30,6 @@ public class JSAggregateDatasource extends AbstractVerticle{
         Vertx vertx = Vertx.vertx();
         vertx.deployVerticle(new JSAggregateDatasource(), new DeploymentOptions().setConfig(config));
         */
-
         VertxOptions opts = new VertxOptions().setClustered(true);
         Vertx.clusteredVertx(opts, result -> {
             if(result.succeeded()){
@@ -42,8 +41,6 @@ public class JSAggregateDatasource extends AbstractVerticle{
                 throw new RuntimeException(result.cause());
             }
         });
-
-
     }
 
     @Override

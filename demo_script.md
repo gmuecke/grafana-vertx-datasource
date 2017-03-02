@@ -14,7 +14,7 @@ Demo Database
     countDistinct()
     
     db.measurements.distinct("t.name")
-    .map(function(name){return { name : name, count : bb.measurements.count({"t.name":name})}})
+    .map(function(name){return { name : name, count : db.measurements.count({"t.name":name})}})
     .sort(function(o1,o2){return o1.count < o2.count})
     .forEach(function(o){print(JSON.stringify(o)}))
     
@@ -87,5 +87,14 @@ Demo 6
 - walk through aggegation verticle
 - walk through percentiles verticle / pipeline
 - experiment with parallelism (4, 8, 16) -> 4 allow disk use
-- 
+
+
+Demo 7
+======
+- download a dataset from [http://api.bitcoincharts.com/v1/csv/]
+
+columns
+1) the trade's timestamp, column 
+2) the price, column 
+3) the volume of the trade
 

@@ -105,7 +105,7 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
                 if (this.postProcessingAddress != null) {
                     vertx.eventBus().send(this.postProcessingAddress, rawResult, ppReply -> {
                         if (ppReply.succeeded()) {
-                            sendReply(msg, (JsonArray) ppReply.result().body(), start);
+                            sendReply(msg, rawResult.addAll((JsonArray) ppReply.result().body()), start);
                         } else {
                             LOG.error("PostProcessing failed", ppReply.cause());
                             sendReply(msg, rawResult, start);

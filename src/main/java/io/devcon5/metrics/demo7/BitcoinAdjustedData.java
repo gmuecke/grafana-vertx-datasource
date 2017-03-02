@@ -122,7 +122,7 @@ public class BitcoinAdjustedData extends AbstractVerticle {
                      .stream()
                      .parallel()
                      .map(o -> (JsonObject) o)
-                     .map(target -> new JsonObject().put("target", target.getString("target"))
+                     .map(target -> new JsonObject().put("target", target.getString("target") + "_btc")
                                                     .put("datapoints",
                                                          adjustByBitcoingPrice(target.getJsonArray("datapoints")))
 
@@ -157,9 +157,10 @@ public class BitcoinAdjustedData extends AbstractVerticle {
      */
     private Double adjustByBitcoingPrice(final Long timestamp, final Double value) {
 
-        double price = this.dataset.ceilingEntry(timestamp).getValue();
+        double price = this.dataset.ceilingEntry(timestamp).getValue() / 1000;
         LOG.trace("Searching for {}, found {}", timestamp, price);
-        return value * price * price * price;
+        return value * Math.pow(price, 10); //using pow to amplify visual effect
+        //return value * price;
     }
 
 }

@@ -1,7 +1,7 @@
 [{
   "$match": {
     "$and": [
-      {"t.name": {"$in": ["EEV_Start"]}},
+      {"t.name": {"$in": ["Example"]}},
       {"n.begin": {"$gte": 1451513179822}},
       {"n.begin": {"$lte": 1483135579822}}
     ]}},{
