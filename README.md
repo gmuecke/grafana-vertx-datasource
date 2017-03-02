@@ -1,5 +1,14 @@
 # grafana-vertx-datasource
-Example Datasource for Grafana, based on Vert.x and MongoDB
+Example Datasource for Grafana, based on Vert.x and MongoDB. 
+
+This project contains the demos for the talk at TopConf Linz 2017.
+The slides for the talk are here: [https://www.slideshare.net/GeraldMuecke/making-sense-of-your-data]
+
+## Disclaimer
+
+The source code was written for demo purposes only and is not meant for production use. Neither has it any tests or
+other quality assuring means applied. So use with care and on your own risk.
+
 
 ## About Grafana
 Grafana is an open source tool for visualizing timeseries data. It runs as a server and the UI is accessible through
@@ -220,3 +229,10 @@ For this purpose we can leverage the database capabilities, specifically the agg
 Unlike the retrieval of the datapoints, calculating the percentiles for the entire range requires some computation.
 As computational tasks may easily block the event loop, we delegate this to worker verticles that run in a 
 dedicated thread.
+
+## Demo 6 JS Verticles
+Demonstrates how to write verticles in Javascript and apply percentile calculation using the aggregation framework.
+
+## Demo 7 Clusterin & Postprocessing
+Demonstrates how postprocessing is applied to datapoint by mulitplying the values with the historical bitcoin price
+(time is money :) and how this postprocessor is attached via clustering / distributed eventbus.
