@@ -18,6 +18,16 @@ Demo Database
     .sort(function(o1,o2){return o1.count < o2.count})
     .forEach(function(o){print(JSON.stringify(o)}))
     
+    
+    measure_20_avg
+    measure_3_avg
+    measure_4_avg
+    measure_5_avg
+    measure_7_avg
+    
+    measure_33_avg
+
+    
 Demo Preparation
 ================
 
@@ -98,3 +108,4 @@ columns
 2) the price, column 
 3) the volume of the trade
 
+measure 20

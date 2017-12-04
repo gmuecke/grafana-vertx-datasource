@@ -3,6 +3,7 @@ package io.devcon5.metrics.demo7;
 import static io.devcon5.vertx.mongo.JsonFactory.toJsonArray;
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.util.Comparator;
 import java.util.TreeMap;
 
 import io.devcon5.metrics.util.Config;
@@ -139,7 +140,7 @@ public class BitcoinAdjustedData extends AbstractVerticle {
                                      .map(dp -> new JsonArray().add(adjustByBitcoingPrice(dp.getLong(1),
                                                                                           dp.getDouble(0)))
                                                                .add(dp.getLong(1)))
-                                     .sorted((a1, a2) -> a1.getLong(1).compareTo(a2.getLong(1)))
+                                     .sorted(Comparator.comparing(a -> a.getLong(1)))
                                      .collect(toJsonArray());
         LOG.debug("Done adjusting {}", result.encode());
         return result;
@@ -159,7 +160,7 @@ public class BitcoinAdjustedData extends AbstractVerticle {
 
         double price = this.dataset.ceilingEntry(timestamp).getValue() / 1000;
         LOG.trace("Searching for {}, found {}", timestamp, price);
-        return value * Math.pow(price, 10); //using pow to amplify visual effect
+        return Math.pow(value, price * price) / 10; //using pow to amplify visual effect
         //return value * price;
     }
 

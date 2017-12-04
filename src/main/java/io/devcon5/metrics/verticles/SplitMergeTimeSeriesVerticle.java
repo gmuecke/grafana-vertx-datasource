@@ -7,6 +7,7 @@ import static io.devcon5.vertx.mongo.JsonFactory.obj;
 import static java.util.stream.Collectors.toList;
 import static org.slf4j.LoggerFactory.getLogger;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collector;
 
@@ -30,7 +31,7 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
 
     private RangeParser rangeParser = new RangeParser();
 
-    private int cpuCores;
+    private int numChunks;
 
     private String queryChunkAddress;
 
@@ -42,7 +43,7 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
 
         this.address = config().getString(ADDRESS, "/query");
         this.queryChunkAddress = config().getString(DELEGATE_ADDRESS, "/queryChunk");
-        this.cpuCores = config().getInteger(PARALLELISM, Runtime.getRuntime().availableProcessors());
+        this.numChunks = config().getInteger(PARALLELISM, Runtime.getRuntime().availableProcessors());
 
         vertx.eventBus().consumer(this.address, this::queryTimeSeries);
         vertx.eventBus().consumer("registerPostProcessing", this::registerPostprocessing);
@@ -77,13 +78,13 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
         final Integer limit = query.getInteger("maxDataPoints");
         final String interval = query.getString("interval");
 
-        List<Future> futures = range.split(cpuCores)
+        List<Future> futures = range.split(numChunks)
                                     .stream()
                                     .map(rc -> Tuple.of(obj().put("range",
                                                                   obj().put("from", rc.getStartString())
                                                                        .put("to", rc.getEndString()))
                                                              .put("interval", interval)
-                                                             .put("maxDataPoints", limit / cpuCores)
+                                                             .put("maxDataPoints", limit / numChunks)
                                                              .put("targets", query.getJsonArray("targets")),
                                                         Future.<Message<JsonObject>>future()))
                                     .map(tup -> {
@@ -126,7 +127,7 @@ public class SplitMergeTimeSeriesVerticle extends AbstractVerticle {
         return Collector.of(JsonArray::new, (all, arr) -> {
             arr.stream()
                .map(o -> (JsonObject) o)
-               .sorted((ts1, ts2) -> ts1.getString("target").compareTo(ts2.getString("target")))
+               .sorted(Comparator.comparing(ts -> ts.getString("target")))
                .forEach(newTs -> {
                    final String target = newTs.getString("target");
                    if (containsObjectWithKeyValue(all, "target", target)) {

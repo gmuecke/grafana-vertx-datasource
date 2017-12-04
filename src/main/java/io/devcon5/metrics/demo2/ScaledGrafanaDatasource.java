@@ -1,7 +1,6 @@
 package io.devcon5.metrics.demo2;
 
 import static io.devcon5.metrics.Constants.ADDRESS;
-import static io.devcon5.metrics.Constants.PARALLELISM;
 
 import io.devcon5.metrics.util.Config;
 import io.devcon5.metrics.verticles.AnnotationVerticle;
@@ -37,8 +36,8 @@ public class ScaledGrafanaDatasource extends AbstractVerticle {
 
         vertx.deployVerticle(SimpleTimeSeriesVerticle.class.getName(),
                              //CHOOSE 1 :)
-                             chunkOpts.setInstances(config.getInteger(PARALLELISM)));
-                             //chunkOpts);
+                             //chunkOpts.setInstances(config.getInteger(PARALLELISM)));
+                             chunkOpts);
         vertx.deployVerticle(SplitMergeTimeSeriesVerticle.class.getName(), opts);
         vertx.deployVerticle(AnnotationVerticle.class.getName(), opts);
         vertx.deployVerticle(LabelVerticle.class.getName(), opts);
